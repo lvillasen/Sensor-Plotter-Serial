@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, user-scalable=no,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0">
+    <title>SensorPlotter</title>
+    <script type="text/x-mathjax-config">
+  MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\(','\\)']]}});
+</script>
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({ TeX: { extensions: ["color.js"] }});
+</script>
+   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    
+<script type="text/javascript"src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>  
+
+<link rel="stylesheet" href="./Sensor-Plotter-Serial.css">
+
+</head>
+<body>
+  <div class="block_container"  style="background-color: #00b5e2; margin-left:10%; margin-right:10%;">    <p> </p>
+    <p> </p>
+    <br>
+
+
+
+    
+    <p> </p>
+    <p> </p>
+
+        <h1> Sensor Plotter with a Serial Port</h1>
+        <h2> CIIEC-BUAP</h2>
+   <p style="font-size: 30px; margin-left: 80%;">May 19th, 2024 </p>
+        <p style="font-size: 20px; margin-left: 80%;"><a href="https://github.com/lvillasen/Serial-Sensor-Plotter" >Source Code</a> </p>
+
+        <hr>
+          
+             
+        <h2> Introduction</h2>
+
+<p style="color:black;font-size:30px;">
+This app plots and prints data sent by an <a href="https://en.wikipedia.org/wiki/ESP32" >ESP32 microcontroller</a> through the serial port using the codes provided to control different sensors. The <a href="https://www.javatpoint.com/arduino-ide" >Arduino IDE</a> software can be used to compile and upload these codes to an ESP32.</p>
+
+
+<p style="color:black;font-size:30px;">This Web App can also be used to perform a <a href="https://en.wikipedia.org/wiki/Discrete_Fourier_transform#:~:text=In%20mathematics%2C%20the%20discrete%20Fourier,complex%2Dvalued%20function%20of%20frequency" >Discrete Fourier Transform</a> to analyse the data in the frequency domain. Alternately, you can copy and paste the data <a href="https://ciiec.buap.mx/FFT-Plotter" >here</a> to get a full calculation of the Discrete Fourier Transform.</p>
+
+
+
+<hr>
+<br>
+<button class="new_styled"  id="toggleCode1" aria-pressed="false">Distance with a Laser</button>
+
+ <pre id="code1" style="background-color: lightblue; margin-left:5%; margin-right:5%;">
+ <center><img src="./laser.jpg" alt="Trulli" width="50%"></center>
+    <br><br>
+    #include "Adafruit_VL53L0X.h"
+
+    Adafruit_VL53L0X lox = Adafruit_VL53L0X();
+    int connect = 1;
+    int previousOK = 0;
+    String result ;
+    unsigned long previousMillis = 0; 
+    float deltaT = 100; 
+    void setup() {
+      Serial.begin(115200);
+
+      // wait until serial port opens for native USB devices
+      while (! Serial) {
+        delay(1);
+      }
+     
+      Serial.println("Adafruit VL53L0X test");
+      if (!lox.begin()) {
+        Serial.println(F("Failed to boot VL53L0X"));
+        while(1);
+      }
+      // power 
+      Serial.println(F("VL53L0X API Simple Ranging example\n\n")); 
+    }
+
+
+    void loop() {
+    if (Serial.available() > 0) {
+          String request = Serial.readStringUntil('\n');
+          if (request.startsWith("deltaT:")) {
+            deltaT = request.substring(7).toFloat();
+          }  
+        }
+
+
+    if (millis() - previousMillis >= deltaT ) {
+    VL53L0X_RangingMeasurementData_t measure;
+       
+      //Serial.print("Reading a measurement... ");
+      lox.rangingTest(&measure, false); // pass in 'true' to get debug data printout!
+
+      //if (measure.RangeStatus != 4) {  // phase failures have incorrect data
+      //  Serial.print("Distance (mm): "); 
+      
+      if (measure.RangeMilliMeter > 2000 || measure.RangeMilliMeter < 1) {
+        result = String(previousOK) + "," + String(millis() - previousMillis) ;
+      } else {
+        result = String(measure.RangeMilliMeter) + "," + String(millis() - previousMillis) ;
+        previousOK = measure.RangeMilliMeter;
+
+      }
+      Serial.println(result);
+      previousMillis = millis();
+
+         
+          
+          
+        }
+    }
+
+</pre>
+<hr>
+<br>
+<button class="new_styled"  id="toggleCode2" aria-pressed="false">Distance with an Ultrasound Sensor</button>
+
+ <pre id="code2" style="background-color: lightblue; margin-left:5%; margin-right:5%;">
+   <center><img src="./ultrasound.jpg" alt="Trulli" width="50%" style="transform:rotate(90deg);"></center>
+    <br><br>
+    // Conect the ultrasound sensor to +5V
+    #define SOUND_SPEED 0.034 //sound speed in cm/uS
+    const int trigPin = 13;
+    const int echoPin = 12;
+    long duration;
+    float distanceCm;
+    float distanceCmPrevious = 0;
+
+    int connect = 1;
+    String result ;
+    unsigned long previousMillis = 0; 
+    float deltaT = 100; 
+
+    void setup() {
+      Serial.begin(115200);
+      pinMode(trigPin, OUTPUT); 
+      pinMode(echoPin, INPUT);
+    }
+
+    void loop() {
+      if (Serial.available() > 0) {
+          String request = Serial.readStringUntil('\n');
+          if (request.startsWith("deltaT:")) {
+            deltaT = request.substring(7).toFloat();
+          }  
+      }
+
+      if (millis() - previousMillis >= deltaT ) {
+        digitalWrite(trigPin, HIGH);
+        delayMicroseconds(10);
+        digitalWrite(trigPin, LOW);
+        duration = pulseIn(echoPin, HIGH);
+        distanceCm = duration * SOUND_SPEED/2;
+        if (distanceCm < 100){
+          result = String(distanceCm) + "," + String(millis() - previousMillis) ;
+          distanceCmPrevious = distanceCm;
+        } else {
+          result = String(distanceCmPrevious) + "," + String(millis() - previousMillis) ;
+        }
+
+        Serial.println(result);
+        previousMillis = millis();
+      }
+    }
+
+</pre>
+<hr>
+<br>
+<button class="new_styled"  id="toggleCode3" aria-pressed="false">Measure Light with a Photodiode</button>
+
+ <pre id="code3" style="background-color: lightblue; margin-left:5%; margin-right:5%;">
+   <center><img src="./fotodiodo.jpg" alt="Trulli" width="50%" style="transform:rotate(90deg);"></center>
+    <br><br>
+    int pinADC = 14;
+    int ADCValue ;
+    int connect = 1;
+    int previousOK = 0;
+    String result ;
+    unsigned long previousMillis = 0; 
+    float deltaT = 100; 
+    void setup() {
+      Serial.begin(115200);
+      }
+     
+
+    void loop() {
+    if (Serial.available() > 0) {
+          String request = Serial.readStringUntil('\n');
+          if (request.startsWith("deltaT:")) {
+            deltaT = request.substring(7).toFloat();
+          }  
+        }
+
+
+    if (millis() - previousMillis >= deltaT ) {
+      ADCValue = analogRead(pinADC);
+       
+        result = String(ADCValue) + "," + String(millis() - previousMillis) ;
+     
+      Serial.println(result);
+      previousMillis = millis();  
+        
+    }
+    }
+
+</pre>
+<hr>
+
+<button class="new_styled"  id="toggleCode4" aria-pressed="false">Hall Effect</button>
+
+ <pre id="code4" style="background-color: lightblue; margin-left:5%; margin-right:5%;">
+
+
+<center><img src="./ESP32.png" alt="Trulli" width="50%" ></center>
+    <br><br>
+     
+
+  float Nrep =10;
+  float deltaT = 100; 
+  long reading1;
+  float finalReading1;
+  int connect = 1;
+  String result ;
+  unsigned long previousMillis = 0; 
+    
+
+  void setup(){
+    Serial.begin(115200); //begin serial communications  
+  }
+
+  void loop(){
+    if (Serial.available() > 0) {
+      String request = Serial.readStringUntil('\n');
+      if (request.startsWith("deltaT:")) {
+        deltaT = request.substring(7).toFloat();
+      } 
+      if (request.startsWith("Nrep:")) {
+        Nrep = request.substring(5).toFloat();
+      }   
+    }
+
+    if (millis() - previousMillis >= deltaT ) {
+      reading1 =0;
+      for(int i = 0; i < Nrep; i++){   
+        reading1 += hallRead();
+      }
+      finalReading1 = reading1/Nrep;
+      result = String(finalReading1) + "," + String(millis() - previousMillis) ;
+      result += "," + String(Nrep);
+      Serial.println(result);
+      previousMillis = millis();
+    }
+  }
+
+</pre>
+<hr>
+
+
+<button class="new_styled"  id="toggleCode5" aria-pressed="false">Pulse Sensor</button>
+
+ <pre id="code5" style="background-color: lightblue; margin-left:5%; margin-right:5%;">
+
+<center><img src="./pulse-sensor.png" alt="Trulli" width="50%" style="transform:rotate(0deg);"></center>
+
+  // Conect Vcc to 3.3 V and signal to GPIO34
+  #define s1 34
+  #define s2 25
+  float Nrep =40;
+  float deltaT = 20; 
+  long reading1;
+  float finalReading1;
+  int connect = 1;
+  String result ;
+  unsigned long previousMillis = 0; 
+      
+  void setup(){
+    Serial.begin(115200); //begin serial communications
+  }
+
+  void loop(){
+    if (Serial.available() > 0) {
+      String request = Serial.readStringUntil('\n');
+      if (request.startsWith("deltaT:")) {
+        deltaT = request.substring(7).toFloat();
+      } 
+      if (request.startsWith("Nrep:")) {
+        Nrep = request.substring(5).toFloat();
+      }   
+    }
+
+
+    if (millis() - previousMillis >= deltaT ) {
+      reading1 =0;
+      for(int i = 0; i < Nrep; i++){   
+        reading1 += analogRead(s1);
+      }
+      finalReading1 = reading1/Nrep;
+      result = String(finalReading1) + "," + String(millis() - previousMillis) ;
+      result += "," + String(Nrep);
+      Serial.println(result);
+      previousMillis = millis();
+    }
+  }
+
+
+
+</pre>
+<hr>
+
+
+<div class="block_container" >
+
+        
+<label style="font-size: 15pt"> Serial port speed:  </label>
+<select  class="selection" name="speed" id="SerialSpeed">
+  <option value="1200">1200</option>
+  <option value="2400">2400</option>
+  <option value="4800">4800</option>
+  <option value="9600">9600</option>
+  <option value="19200">19200</option>
+  <option value="38400">38400</option>
+  <option value="57600">57600</option>
+  <option value="115200" selected>115200</option>
+  <option value="230400"  >230400</option>
+</select>
+
+ <input class="favorite styled" type="button" id="SerialConnectBt" value="Connect" ;>
+
+
+
+</div>
+         
+<div class="block_container" >
+    
+
+<label style="font-size: 15pt;">Delta T in ms:  </label>
+<input id="deltaT" style="width:5%;" value="20.0" type="text" onchange="send_deltaT()">
+<label style="font-size: 15pt;">Number of Repetitions: </label>
+
+<input id="Nrep" style="width:5%;" value="10.0" type="text" onchange="send_Nrep()">
+
+<label style="font-size: 15pt;"> Number of Points in Plot:  </label>
+<input id="points_max" style="width:5%;" value="128" type="text" >
+       
+
+
+<label style="font-size: 15pt;"> Column X:  </label>
+<input id="ColumnX" style="width:5%;" value="0" type="text"  >
+<label style="font-size: 15pt;"> Column Y:  </label>
+<input id="ColumnY" style="width:5%;" value="1" type="text"  >
+<br>
+<br>
+
+<button class="new_styled"  id="toggleX" aria-pressed="false">Column 0</button>  
+<div id="plot_dataX" style= " border:solid 5px #003b5c; width:100%;"></div>
+
+<hr>
+<button class="new_styled"  id="toggleY" aria-pressed="false">Column 1</button>
+<div id="plot_dataY" style= " border:solid 5px #003b5c; width:100%;"></div>
+
+<hr>
+<h2> Fourier Analisys</h2>
+    <br>
+
+     $$\huge  \definecolor{energy}{RGB}{0,0,0} \definecolor{freq}{RGB}{0,0,0} \definecolor{spin}{RGB}{0,0,0} \definecolor{signal}{RGB}{0,0,0} \definecolor{circle}{RGB}{0,0,0} \definecolor{average}{RGB}{0,0,0} \color{energy} X_{\color{freq} k} \color{black} = \color{average}  \sum_{n=0}^{N-1} \color{signal}x_n \color{spin} e^{-\mathrm{i} \color{circle} 2\pi \color{freq}k \color{average} n/N} = \sum_{n=0}^{N-1} \color{signal}x_n \color{spin} cos( \color{circle} 2\pi \color{freq}k \color{average} n/N) - \mathrm{i}\sum_{n=0}^{N-1} \color{signal}x_n \color{spin} sin( \color{circle} 2\pi \color{freq}k \color{average} n/N)$$ 
+
+ <p style="font-size: 30px; ">for </p> 
+
+ $$\huge 0\le k \le N-1 $$
+<hr>
+<button class="new_styled"  id="toggleXY" aria-pressed="false">Discrete Fourier Transform</button>
+<label style="font-size: 15pt;"> k =  </label>
+
+<input id="k" style="width:5%;" value="5" type="text" onchange="fourier()">
+
+<div id="plot_dataXY" style= " border:solid 5px #003b5c; width:100%;"></div>
+
+
+</div>
+
+
+
+
+
+<label style="font-size: 15pt;"> Data:  </label>
+
+
+<textarea id="display_data" style= "white-space: pre; border:solid 5px #003b5c;" rows="20" cols="120"></textarea>
+<hr>
+
+</body>
+<script src="./Sensor-Plotter-Serial.js"></script>
+</html>
